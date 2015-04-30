@@ -1,0 +1,108 @@
+---
+title: 'RR Peer Assessment #1'
+author: "Suzanne"
+date: "Sunday, April 12, 2015"
+output: html_document
+---
+##Peer Assessment #1
+
+Let's start by loading and processing the data:
+```{r}
+setInternet2(TRUE)
+temp <- tempfile()
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", temp, mode="wb")
+ad <- read.csv(unz(temp,"activity.csv"),stringsAsFactors=FALSE)
+ad$date <- as.Date(ad$date)
+```
+
+Here is a dataframe showing the total steps taken by day:
+```{r, echo=TRUE}
+dailySteps <- aggregate(steps~date, data=ad,FUN=sum, na.rm=TRUE)
+head(dailySteps)
+```
+
+Here is a histogram of total steps taken in a day:
+```{r, echo = TRUE}
+hist(dailySteps$steps)
+```
+
+Here is the mean number of steps per day
+```{r}
+dailyMean <- round(mean(dailySteps$steps),0)
+dailyMean
+```
+Here is the median number steps per day
+```{r}
+dailyMedian <- median(dailySteps$steps)
+dailyMedian
+```
+
+
+Here is a time series of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+```{r}
+intervalSteps <- aggregate(steps~interval, data=ad,FUN=mean, na.rm=TRUE)
+plot(intervalSteps$interval, intervalSteps$steps, type="l")
+```
+
+```{r}
+#interval with largest avg steps
+maxInterval<-intervalSteps[which.max(intervalSteps$steps),1]
+```
+
+The interval with the largest average steps is `r maxInterval`.
+
+```{r}
+#number of complete rows
+missingValues <- nrow(na.omit(ad))
+sum(complete.cases(ad))
+```
+
+There are `r missingValues` missing values in this dataset.
+
+Let's create new dataset by imputting missing values using the average of that interval
+```{r}
+#merge the original dataset with the dataframe containing average steps per interval
+combo <- merge(ad, intervalSteps, by="interval")
+colnames(combo)[4] <- "intervalAvg"
+
+#replace NULLs with the interval avg
+combo$steps.x[is.na(combo$steps.x)] <- combo$intervalAvg[is.na(combo$steps.x)]
+
+#remove the interval avg column after imputting
+combo$intervalAvg <-  NULL
+```
+
+Let's make histogram of total steps taken per day from the imputted dataset:
+```{r}
+comboDailySteps <- aggregate(steps.x~date, data=combo,FUN=sum, na.rm=TRUE)
+
+#calculate mean and median steps per day
+comboDailyMean <- mean(comboDailySteps$steps.x)
+comboDailyMedian <- median(comboDailySteps$steps.x)
+comboDailyMean
+comboDailyMedian
+```
+
+Comparing the histograms of the two datasets shows there is an impact of imputting missing values, by raising the frequency of occurences in the 10,000 to 15,000 step range:
+```{r}
+par(mfrow=c(1,2))
+hist(comboDailySteps$steps.x, main = "Histogram With Imputted Values")
+hist(dailySteps$steps, main = "Histogram with Missing Values")
+```
+
+
+Create new variable indicating weekday vs. weekend
+```{r}
+combo$DayofWeek <- ifelse(weekdays(combo$date) %in% c('Saturday','Sunday'), "weekend", "weekday")
+```
+
+
+
+Aggregate steps by interval for weekday. Aggregate steps by interval for weekends. Compare the results
+```{r}
+comboIntervalSteps <- aggregate(steps.x~interval + DayofWeek, data=combo,FUN=sum, na.rm=TRUE)
+par(mfrow=c(1,2))
+with(comboIntervalSteps[comboIntervalSteps$DayofWeek == "weekend",], plot(interval,steps.x, type="l", main=" Weekend Intervals"))
+with(comboIntervalSteps[comboIntervalSteps$DayofWeek == "weekday",], plot(interval,steps.x, type="l", main = "Weekday Interval"))
+```
+
